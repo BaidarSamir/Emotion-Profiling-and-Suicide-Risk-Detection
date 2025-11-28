@@ -28,6 +28,7 @@ We investigate whether a compact Transformer (DistilBERT) can simultaneously sup
 | GoEmotions | 211 225 × 31 | `id`, `text`, `example_very_unclear`, 28 emotion indicators, `neutral` | 48.5 MB, boolean clarity flag + dense integer labels |
 | SuicideWatch | 232 074 × 3 | `text`, `class` (`suicide` / `non-suicide`) | 5.3 MB, includes `Unnamed: 0` index column from Kaggle export |
 
+
 ### Emotion Label Distribution (10k GoEmotions Split)
 
 | Label | Samples | Label | Samples |
@@ -51,7 +52,7 @@ We investigate whether a compact Transformer (DistilBERT) can simultaneously sup
 
 - **Pre-processing:** Remove unclear GoEmotions entries, enforce at least one positive label, and perform iterative multi-label stratification (`skmultilearn`). SuicideWatch texts are lowercased, stripped, and remapped to binary labels.
 - **Modeling:** DistilBERT serves as a shared encoder. For GoEmotions we activate multi-label classification (`problem_type="multi_label_classification"`) and use a custom Trainer subclass with class-weighted `BCEWithLogitsLoss`. For SuicideWatch we fine-tune a binary head optimized with cross-entropy.
-- **Evaluation Metrics:** Hamming score plus micro/macro F1 (emotions) and accuracy/precision/recall/F1 (SuicideWatch). Sigmoid threshold defaults to 0.5 for all emotions.
+- **Evaluation Metrics:** Hamming score plus micro/macro F1 (emotions) and accuracy/precision/recall/F1 (SuicideWatch). Sigmoid threshold defaults to 0.5 for all emotions
 
 ## Experimental Setup
 
