@@ -1,2 +1,7 @@
 Data/
 *.ipynb_checkpoints/
+model_go/
+model_sw/
+*.pt
+*.safetensors
+*.zip

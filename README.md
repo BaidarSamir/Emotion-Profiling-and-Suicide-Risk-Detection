@@ -11,7 +11,22 @@ We investigate whether a compact Transformer (DistilBERT) can simultaneously sup
 ├── Data/
 │   ├── go_emotions_dataset.csv
 │   └── Suicide_Detection.csv
-└── distilbert-emotion-suicide-risk.ipynb
+├── emotions-and-suicide-risk-using-distilbert-model (2).ipynb
+├── distilbert-emotion-suicide-risk.ipynb
+├── model_go/
+│   ├── config.json
+│   ├── model.safetensors
+│   ├── model_go_pruned.pt
+│   ├── model_go_pruned_quantized.pt
+│   └── ...
+├── model_sw/
+│   ├── config.json
+│   ├── model.safetensors
+│   ├── model_sw_pruned.pt
+│   ├── model_sw_pruned_quantized.pt
+│   └── ...
+└── visuals/
+    └── training curves + evaluation plots (PNG)
 ```
 
 ## Datasets
@@ -52,52 +67,46 @@ We investigate whether a compact Transformer (DistilBERT) can simultaneously sup
 
 - **Pre-processing:** Remove unclear GoEmotions entries, enforce at least one positive label, and perform iterative multi-label stratification (`skmultilearn`). SuicideWatch texts are lowercased, stripped, and remapped to binary labels.
 - **Modeling:** DistilBERT serves as a shared encoder. For GoEmotions we activate multi-label classification (`problem_type="multi_label_classification"`) and use a custom Trainer subclass with class-weighted `BCEWithLogitsLoss`. For SuicideWatch we fine-tune a binary head optimized with cross-entropy.
-- **Evaluation Metrics:** Hamming score plus micro/macro F1 (emotions) and accuracy/precision/recall/F1 (SuicideWatch). Sigmoid threshold defaults to 0.5 for all emotions
+- **Evaluation Metrics:** Hamming score plus micro/macro F1 (GoEmotions) and accuracy/precision/recall/F1 (SuicideWatch). Sigmoid threshold defaults to 0.5 for every emotion logit.
+
+### Architecture Overview
+
+The study relies on DistilBERT's compressed Transformer backbone, which halves the number of layers relative to BERT-Base while retaining most of its representational capacity. The schematic below (adapted from Hugging Face) illustrates how the student network inherits the teacher's embeddings, multi-head attention, and feed-forward stacks, making it well-suited for efficient fine-tuning on safety-critical NLP tasks.
+
+![DistilBERT vs. BERT architecture](Diagram_of_BERT_BASE_and_Distil_BERT_model_architecture_facb5e7639.png)
 
 ## Experimental Setup
 
-- Hardware: single GPU runtime (Kaggle/Colab-style environment; adjust to local CUDA device if available).
-- Tokenization: max length 128 (GoEmotions) and 256 (SuicideWatch), padding to fixed length.
-- Optimizer/TrainingArguments: batch size 8, 10 epochs for GoEmotions, 5 epochs for SuicideWatch, evaluation at each epoch, logging every 50 steps.
-- Outputs: checkpoints and logs stored in `/kaggle/working/...`; update the notebook paths if running locally.
+- Hardware: single Tesla T4 GPU in Kaggle; the notebook auto-detects and falls back to CPU if unavailable.
+- Tokenization: max length 128 (GoEmotions) and 256 (SuicideWatch) with static padding for efficient batching.
+- Optimizer/TrainingArguments: batch size 8 for both tasks, GoEmotions trained for 10 epochs, SuicideWatch for 3 epochs, evaluation strategy = `epoch`, logging every 50 steps.
+- Outputs: checkpoints, logs, and Matplotlib figures written to the workspace (e.g., `/kaggle/working` in Kaggle or the repo root locally).
 
 ## Results
 
 | Task | Validation metrics | Test metrics |
 | --- | --- | --- |
-| GoEmotions | `F1_micro = 0.362`, `F1_macro = 0.295`, `hamming = 0.317` | `F1_micro = 0.357`, `F1_macro = 0.315`, `hamming = 0.314` |
-| SuicideWatch | `accuracy = 0.951`, `F1 = 0.952`, `precision = 0.949`, `recall = 0.954` | `accuracy = 0.961`, `F1 = 0.961`, `precision = 0.958`, `recall = 0.964` |
+| GoEmotions | `hamming = 0.3209`, `F1_micro = 0.3640`, `F1_macro = 0.3156`, `precision_micro = 0.2975`, `recall_micro = 0.4687` | `hamming = 0.3209`, `F1_micro = 0.3640`, `F1_macro = 0.3156`, `precision_micro = 0.2975`, `recall_micro = 0.4687` |
+| SuicideWatch | `accuracy = 0.9740`, `F1 = 0.9739`, `precision = 0.9759`, `recall = 0.9720` | `accuracy = 0.9630`, `F1 = 0.9632`, `precision = 0.9596`, `recall = 0.9667` |
 
-### Training Dynamics
+### Visual Diagnostics
 
-GoEmotions fine-tuning (`batch_size = 8`, 10 epochs):
+The notebook exports Matplotlib figures to `visuals/`, covering:
 
-| Epoch | Train Loss | Val Loss | Hamming | F1 Micro | F1 Macro | Precision Micro | Recall Micro |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 1.045 | 0.961 | 0.162 | 0.227 | 0.212 | 0.134 | 0.738 |
-| 2 | 0.832 | 0.958 | 0.195 | 0.252 | 0.234 | 0.153 | 0.709 |
-| 3 | 0.724 | 1.157 | 0.230 | 0.300 | 0.260 | 0.192 | 0.692 |
-| 4 | 0.532 | 1.290 | 0.237 | 0.303 | 0.269 | 0.198 | 0.643 |
-| 5 | 0.392 | 1.524 | 0.256 | 0.322 | 0.281 | 0.220 | 0.600 |
-| 6 | 0.324 | 1.839 | 0.269 | 0.330 | 0.280 | 0.235 | 0.552 |
-| 7 | 0.271 | 2.031 | 0.292 | 0.345 | 0.290 | 0.255 | 0.537 |
-| 8 | 0.198 | 2.379 | 0.298 | 0.348 | 0.289 | 0.265 | 0.507 |
-| 9 | 0.182 | 2.489 | 0.312 | 0.358 | 0.292 | 0.282 | 0.490 |
-| 10 | 0.151 | 2.583 | 0.317 | 0.362 | 0.295 | 0.289 | 0.485 |
-
-SuicideWatch fine-tuning (5 epochs):
-
-| Epoch | Train Loss | Val Loss | Accuracy | F1 | Precision | Recall |
-| --- | --- | --- | --- | --- | --- | --- |
-| 1 | 0.121 | 0.164 | 0.951 | 0.952 | 0.938 | 0.966 |
-| 2 | 0.094 | 0.173 | 0.955 | 0.955 | 0.960 | 0.950 |
-| 3 | 0.013 | 0.249 | 0.952 | 0.953 | 0.942 | 0.964 |
-| 4 | 0.001 | 0.312 | 0.952 | 0.953 | 0.949 | 0.956 |
-| 5 | 0.0004 | 0.316 | 0.951 | 0.952 | 0.949 | 0.954 |
+- GoEmotions training/validation loss curves plus micro-/macro-F1 and Hamming score trends.
+- SuicideWatch training/validation loss and accuracy/precision/recall/F1 across epochs.
+- Validation/test metric tables embedded directly in the notebook for reproducibility.
 
 ## Model Compression and Deployment
 
-Both fine-tuned checkpoints undergo 30 % unstructured L1 pruning on all linear layers, followed by dynamic quantization (`torch.quantization.quantize_dynamic`) to obtain INT8 models. This reduces on-disk size and inference latency, making the models suitable for edge-serving backends.
+Both fine-tuned checkpoints undergo 30 % unstructured L1 pruning on every linear layer, followed by dynamic quantization (`torch.quantization.quantize_dynamic`) to obtain INT8 models. The outputs are stored alongside the original folders:
+
+- `model_go/model_go_pruned.pt`
+- `model_go/model_go_pruned_quantized.pt`
+- `model_sw/model_sw_pruned.pt`
+- `model_sw/model_sw_pruned_quantized.pt`
+
+These artifacts trim disk usage and enable CPU-only inference without retraining.
 
 ### Example Inference
 
@@ -106,7 +115,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
 tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
-model = torch.load("model_sw_pruned_quantized.pt")
+model = torch.load("model_sw/model_sw_pruned_quantized.pt")
 model.eval()
 
 inputs = tokenizer(
@@ -127,7 +136,7 @@ Use the GoEmotions checkpoint with a sigmoid activation to obtain 29 probability
 
 1. Create a virtual environment (Python ≥ 3.10) and install `torch`, `transformers`, `scikit-learn`, `scikit-multilearn`, `pandas`, `numpy`, `jupyter`.
 2. Place the Kaggle CSVs in `Data/` or update the notebook paths.
-3. Launch Jupyter (`jupyter notebook`) and run `distilbert-emotion-suicide-risk.ipynb` sequentially.
+3. Launch Jupyter (`jupyter notebook`) and run `emotions-and-suicide-risk-using-distilbert-model (2).ipynb` sequentially (the original notebook remains for reference).
 4. Update `output_dir` and checkpoint paths if running outside Kaggle to avoid writing to `/kaggle/working`.
 
 ## Ethical Considerations
