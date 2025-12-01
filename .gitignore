@@ -1,7 +1,60 @@
-Data/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# Jupyter Notebook
+.ipynb_checkpoints
 *.ipynb_checkpoints/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Model files (too large for git - download separately)
+*.pt
+*.bin
+*.safetensors
 model_go/
 model_sw/
-*.pt
-*.safetensors
+
+# Data files (too large for git - download from Kaggle)
+Data/
+*.csv
+
+# Logs and training outputs
+logs/
+*.log
+results_go/
+results_sw/
+logs_go/
+logs_sw/
+figures/
+training_args.bin
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Archives
 *.zip
+
+# Temporary files
+*.tmp
+*.bak
+test_results.json
+notebook_code.py
