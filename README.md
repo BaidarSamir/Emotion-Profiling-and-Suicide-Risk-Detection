@@ -100,8 +100,8 @@ This study implements DistilBERT-based models for two distinct mental health cla
   - GoEmotions: Focal Loss (α=0.25, γ=2.0) with per-class positive weights
   - SuicideWatch: Binary Focal Loss (α=0.25, γ=2.0) with label smoothing (0.1)
 - **Optimization:** AdamW with cosine learning rate scheduling, 10% warmup (SuicideWatch only)
-- **Training:** Mixed precision (FP16), batch size 8, early stopping based on validation metrics
-- **Epochs:** 10 for GoEmotions, 8 for SuicideWatch (best at epoch 5)
+- **Training:** Mixed precision (FP16), batch size 8, automatic early stopping with `load_best_model_at_end=True`
+- **Epochs:** 15 for GoEmotions (best model selected based on validation F1-macro), 8 for SuicideWatch (training stopped early at epoch 5 due to validation F1 plateau)
 
 ### Threshold Optimization
 - **GoEmotions only:** Post-training class-specific threshold tuning on validation set
@@ -130,17 +130,18 @@ The study relies on DistilBERT's compressed Transformer backbone, which halves t
   - Static padding for efficient batching
 - **Training Configuration:**
   - Batch size: 8 (both tasks)
-  - GoEmotions: 10 epochs, logging every 50 steps
-  - SuicideWatch: 8 epochs (best model at epoch 5), logging every 100 steps
+  - GoEmotions: 15 epochs, logging every 50 steps
+  - SuicideWatch: 8 epochs configured (training stopped early at epoch 5), logging every 100 steps
   - Evaluation strategy: per epoch
   - Model selection: best validation F1-macro (GoEmotions), best validation F1 (SuicideWatch)
+  - Early stopping: automatic via `load_best_model_at_end=True`, loads best checkpoint at training completion
 - **Output Artifacts:** Checkpoints saved to `model_go/` and `model_sw/`, training curves saved to `visuals/`, logs written to `logs_go/` and `logs_sw/`
 
 ## Results
 
 ### Quantitative Performance
 
-**GoEmotions (Validation Set, Epoch 10)**
+**GoEmotions (Validation Set, Best Epoch from 15)**
 
 | Threshold Strategy | Hamming Score | F1-Micro | F1-Macro | Precision (Micro) | Recall (Micro) |
 | --- | --- | --- | --- | --- | --- |
@@ -156,6 +157,8 @@ The study relies on DistilBERT's compressed Transformer backbone, which halves t
 | F1-Score | **97.07%** |
 | Precision | **97.35%** |
 | Recall | **96.79%** |
+
+> **Note:** SuicideWatch training was configured for 8 epochs but automatically stopped at epoch 5 due to validation F1 plateauing. The best model checkpoint (epoch 4-5) was automatically loaded via `load_best_model_at_end=True`.
 
 ### Training Curves
 
