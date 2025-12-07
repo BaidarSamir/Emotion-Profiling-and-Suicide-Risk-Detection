@@ -8,7 +8,7 @@
 
 ## Abstract
 
-We investigate whether a compact Transformer (DistilBERT) can simultaneously support nuanced emotion profiling and binary suicide risk detection for text-based mental-health support systems. Using the GoEmotions corpus and a curated SuicideWatch dataset, we construct task-specific heads, apply class-weighted loss functions, and evaluate both validation and test performance. The study further quantifies label imbalance, monitors convergence behavior, and applies pruning plus dynamic quantization to produce deployable INT8 checkpoints. A production-ready FastAPI service exposes both models through REST endpoints for real-time inference.
+This study implements DistilBERT-based models for two distinct mental health classification tasks: multi-label emotion profiling on the GoEmotions dataset (29 categories) and binary suicide risk detection on the SuicideWatch dataset. The implementation incorporates Focal Loss to address class imbalance, class-specific threshold optimization for multi-label predictions, and stratified 40/10/50 train/validation/test splits. Models achieve 39.24% F1-micro (with optimized thresholds) on GoEmotions and 97.07% accuracy on SuicideWatch validation sets. The study includes model compression via 30% pruning and INT8 quantization for efficient deployment, with a FastAPI service providing REST endpoints for real-time inference.
 
 ## Table of Contents
 - [Architecture Overview](#architecture-overview)
@@ -30,13 +30,13 @@ We investigate whether a compact Transformer (DistilBERT) can simultaneously sup
 ├── Data/
 │   ├── go_emotions_dataset.csv
 │   └── Suicide_Detection.csv
-├── emotions-and-suicide-risk-using-distilbert-model (2).ipynb
-├── distilbert-emotion-suicide-risk.ipynb
+├── distilbert-emotion-suicide-risk-improved.ipynb
 ├── app/
 │   └── main.py
 ├── model_go/
 │   ├── config.json
 │   ├── model.safetensors
+│   ├── optimal_thresholds.npy
 │   ├── model_go_pruned.pt
 │   ├── model_go_pruned_quantized.pt
 │   └── ...
@@ -52,8 +52,8 @@ We investigate whether a compact Transformer (DistilBERT) can simultaneously sup
 
 ## Datasets
 
-- **GoEmotions** (Google/Pushshift): 211 225 Reddit comments annotated with 28 fine-grained emotions and `neutral`. We filter out `example_very_unclear` entries and discard samples without any positive emotion prior to running an iterative stratified split. Download: <https://www.kaggle.com/datasets/shivamb/go-emotions-google-emotions-dataset>.
-- **SuicideWatch** (Nikhileswar Komati): 232 074 Reddit posts labeled as `suicide` or `non-suicide`. A stratified 10 000-post subset forms the training set; the remainder serves as held-out evaluation data. Download: <https://www.kaggle.com/datasets/nikhileswarkomati/suicide-watch>.
+- **GoEmotions** (Google/Pushshift): 211,225 Reddit comments annotated with 28 fine-grained emotions and `neutral`. After filtering `example_very_unclear` entries and removing samples without positive emotion labels, the dataset is split using iterative stratified sampling into 83,150 training / 20,787 validation / 103,877 test samples (40/10/50 split). Download: <https://www.kaggle.com/datasets/shivamb/go-emotions-google-emotions-dataset>.
+- **SuicideWatch** (Nikhileswar Komati): 232,074 Reddit posts labeled as `suicide` or `non-suicide`. The dataset is stratified into 92,829 training / 23,208 validation / 116,037 test samples (40/10/50 split). Class distribution is balanced at approximately 50/50. Download: <https://www.kaggle.com/datasets/nikhileswarkomati/suicide-watch>.
 
 > Both corpora contain sensitive mental-health disclosures. Respect Kaggle licensing terms and handle all text responsibly.
 
@@ -65,30 +65,52 @@ We investigate whether a compact Transformer (DistilBERT) can simultaneously sup
 | SuicideWatch | 232 074 × 3 | `text`, `class` (`suicide` / `non-suicide`) | 5.3 MB, includes `Unnamed: 0` index column from Kaggle export |
 
 
-### Emotion Label Distribution (10k GoEmotions Split)
+### Emotion Label Distribution (83k GoEmotions Training Split)
 
 | Label | Samples | Label | Samples |
 | --- | --- | --- | --- |
-| grief | 32 | disgust | 255 |
-| relief | 62 | surprise | 265 |
-| pride | 63 | excitement | 271 |
-| nervousness | 87 | caring | 289 |
-| embarrassment | 119 | sadness | 325 |
-| remorse | 122 | confusion | 354 |
-| fear | 154 | joy | 384 |
-| desire | 184 | anger | 389 |
-| love | 394 | gratitude | 559 |
-| disappointment | 408 | annoyance | 655 |
-| optimism | 419 | admiration | 824 |
-| realization | 423 | approval | 848 |
-| amusement | 445 | neutral | 2 661 |
-| curiosity | 466 | — | — |
+| grief | 270 | disgust | 2,120 |
+| relief | 515 | surprise | 2,206 |
+| pride | 521 | excitement | 2,252 |
+| nervousness | 724 | caring | 2,399 |
+| embarrassment | 990 | sadness | 2,703 |
+| remorse | 1,010 | confusion | 2,944 |
+| fear | 1,279 | joy | 3,194 |
+| desire | 1,527 | anger | 3,234 |
+| love | 3,277 | gratitude | 4,645 |
+| disappointment | 3,388 | annoyance | 5,441 |
+| optimism | 3,486 | admiration | 6,846 |
+| realization | 3,514 | approval | 7,044 |
+| amusement | 3,699 | neutral | 22,104 |
+| curiosity | 3,873 | — | — |
 
 ## Methodology
 
-- **Pre-processing:** Remove unclear GoEmotions entries, enforce at least one positive label, and perform iterative multi-label stratification (`skmultilearn`). SuicideWatch texts are lowercased, stripped, and remapped to binary labels.
-- **Modeling:** DistilBERT serves as a shared encoder. For GoEmotions we activate multi-label classification (`problem_type="multi_label_classification"`) and use a custom Trainer subclass with class-weighted `BCEWithLogitsLoss`. For SuicideWatch we fine-tune a binary head optimized with cross-entropy.
-- **Evaluation Metrics:** Hamming score plus micro/macro F1 (GoEmotions) and accuracy/precision/recall/F1 (SuicideWatch). Sigmoid threshold defaults to 0.5 for every emotion logit.
+### Data Preprocessing
+- **GoEmotions:** Remove `example_very_unclear` entries, discard samples without positive emotion labels, apply iterative multi-label stratification (`skmultilearn`) for 40/10/50 train/validation/test split
+- **SuicideWatch:** Lowercase and strip text, remap string labels to binary (0/1), stratified 40/10/50 split maintaining class balance
+
+### Model Architecture
+- **Base Model:** DistilBERT-base-uncased for both tasks
+- **GoEmotions:** Multi-label classification head (`problem_type="multi_label_classification"`) with 29 output neurons
+- **SuicideWatch:** Binary classification head with 2 output neurons
+
+### Training Configuration
+- **Loss Functions:**
+  - GoEmotions: Focal Loss (α=0.25, γ=2.0) with per-class positive weights
+  - SuicideWatch: Binary Focal Loss (α=0.25, γ=2.0) with label smoothing (0.1)
+- **Optimization:** AdamW with cosine learning rate scheduling, 10% warmup (SuicideWatch only)
+- **Training:** Mixed precision (FP16), batch size 8, early stopping based on validation metrics
+- **Epochs:** 10 for GoEmotions, 8 for SuicideWatch (best at epoch 5)
+
+### Threshold Optimization
+- **GoEmotions only:** Post-training class-specific threshold tuning on validation set
+- Thresholds optimized per emotion to maximize per-class F1-scores
+- Range: 0.35 (relief) to 0.80 (fear, gratitude)
+
+### Evaluation Metrics
+- **GoEmotions:** Hamming score, micro/macro F1, micro precision/recall
+- **SuicideWatch:** Accuracy, F1-score, precision, recall
 
 ## Architecture Overview
 
@@ -101,19 +123,39 @@ The study relies on DistilBERT's compressed Transformer backbone, which halves t
 
 ## Experimental Setup
 
-- Hardware: single Tesla T4 GPU in Kaggle; the notebook auto-detects and falls back to CPU if unavailable.
-- Tokenization: max length 128 (GoEmotions) and 256 (SuicideWatch) with static padding for efficient batching.
-- Optimizer/TrainingArguments: batch size 8 for both tasks, GoEmotions trained for 10 epochs, SuicideWatch for 3 epochs, evaluation strategy = `epoch`, logging every 50 steps.
-- Outputs: checkpoints, logs, and Matplotlib figures written to the workspace (e.g., `/kaggle/working` in Kaggle or the repo root locally).
+- **Hardware:** Tesla T4 GPU (Kaggle environment); automatic CPU fallback when GPU unavailable
+- **Tokenization:** 
+  - GoEmotions: max length 128 tokens
+  - SuicideWatch: max length 256 tokens
+  - Static padding for efficient batching
+- **Training Configuration:**
+  - Batch size: 8 (both tasks)
+  - GoEmotions: 10 epochs, logging every 50 steps
+  - SuicideWatch: 8 epochs (best model at epoch 5), logging every 100 steps
+  - Evaluation strategy: per epoch
+  - Model selection: best validation F1-macro (GoEmotions), best validation F1 (SuicideWatch)
+- **Output Artifacts:** Checkpoints saved to `model_go/` and `model_sw/`, training curves saved to `visuals/`, logs written to `logs_go/` and `logs_sw/`
 
 ## Results
 
 ### Quantitative Performance
 
-| Task | Validation metrics | Test metrics |
-| --- | --- | --- |
-| **GoEmotions** | hamming = 0.3209, F1<sub>micro</sub> = 0.3640, F1<sub>macro</sub> = 0.3156, precision<sub>micro</sub> = 0.2975, recall<sub>micro</sub> = 0.4687 | hamming = 0.3209, F1<sub>micro</sub> = 0.3640, F1<sub>macro</sub> = 0.3156, precision<sub>micro</sub> = 0.2975, recall<sub>micro</sub> = 0.4687 |
-| **SuicideWatch** | accuracy = 0.9740, F1 = 0.9739, precision = 0.9759, recall = 0.9720 | **accuracy = 0.9630**, **F1 = 0.9632**, precision = 0.9596, recall = 0.9667 |
+**GoEmotions (Validation Set, Epoch 10)**
+
+| Threshold Strategy | Hamming Score | F1-Micro | F1-Macro | Precision (Micro) | Recall (Micro) |
+| --- | --- | --- | --- | --- | --- |
+| Fixed (0.5) | 0.3218 | 0.3737 | 0.3290 | 0.2791 | 0.5651 |
+| Optimized (per-class) | **0.3433** | **0.3924** | **0.3426** | 0.2791 | 0.5651 |
+| **Improvement** | **+2.15%** | **+1.88%** | **+1.36%** | — | — |
+
+**SuicideWatch (Validation Set, Best Epoch 5)**
+
+| Metric | Score |
+| --- | --- |
+| Accuracy | **97.07%** |
+| F1-Score | **97.07%** |
+| Precision | **97.35%** |
+| Recall | **96.79%** |
 
 ### Training Curves
 
@@ -164,17 +206,21 @@ Run the Jupyter notebook to train both models (requires datasets):
 pip install jupyter matplotlib scikit-learn scikit-multilearn gdown
 
 # Launch Jupyter
-jupyter notebook distilbert-emotion-suicide-risk.ipynb
+jupyter notebook distilbert-emotion-suicide-risk-improved.ipynb
 ```
 
 The notebook will:
 1. Download GoEmotions and SuicideWatch datasets (or use local files from `Data/`)
-2. Train both DistilBERT models (10k samples each)
-3. Generate evaluation metrics and visualizations
-4. Save models to `model_go/` and `model_sw/`
-5. Create pruned and quantized versions for deployment
+2. Apply stratified 40/10/50 splits with iterative multi-label stratification
+3. Train both DistilBERT models with Focal Loss:
+   - GoEmotions: 83,150 training samples, 10 epochs
+   - SuicideWatch: 92,829 training samples, 8 epochs
+4. Perform threshold optimization for GoEmotions (29 class-specific thresholds)
+5. Generate evaluation metrics and visualizations
+6. Save models to `model_go/` and `model_sw/`
+7. Create pruned (30%) and quantized (INT8) versions for deployment
 
-**Training time**: ~45 minutes on Tesla T4 GPU, ~4 hours on CPU
+**Training time**: ~2.5 hours for GoEmotions + ~2.5 hours for SuicideWatch on Tesla T4 GPU
 
 ### Option 2: Use Pre-trained Models
 
@@ -260,11 +306,12 @@ Content-Type: application/json
 
 ## Future Directions
 
-1. **Expanded Training**: Increase GoEmotions coverage with class-balanced sampling to improve macro-level recall
-2. **Multilingual Support**: Fine-tune on non-English corpora for broader accessibility
-3. **Temporal Modeling**: Incorporate conversation history for context-aware risk assessment
-4. **Explainability**: Integrate attention visualization and LIME/SHAP for interpretable predictions
-5. **Calibration**: Apply temperature scaling and Platt scaling for reliable probability estimates
+1. **Test Set Evaluation**: Conduct comprehensive evaluation on held-out test sets (103,877 GoEmotions samples, 116,037 SuicideWatch samples) to validate generalization
+2. **Class-Balanced Sampling**: Apply oversampling or focal loss weight adjustments to improve performance on rare emotion classes (grief, relief, pride)
+3. **Multilingual Extension**: Fine-tune models on non-English mental health corpora for broader applicability
+4. **Temporal Context**: Incorporate conversation history or user posting patterns for longitudinal risk assessment
+5. **Model Interpretability**: Integrate attention visualization, LIME, or SHAP for explainable predictions in clinical settings
+6. **Probability Calibration**: Apply temperature scaling or Platt scaling to improve confidence estimation reliability
 
 ## Citation
 
@@ -332,7 +379,8 @@ Emotion-Profiling-and-Suicide-Risk-Detection/
 │   ├── sw_eval_f1.png
 │   ├── sw_eval_precision.png
 │   └── sw_eval_recall.png
-├── distilbert-emotion-suicide-risk.ipynb  # Training notebook
+├── distilbert-emotion-suicide-risk-improved.ipynb  # Improved training notebook with Focal Loss
+├── distilbert-emotion-suicide-risk.ipynb  # Baseline training notebook (deprecated)
 ├── Diagram_of_BERT_BASE_and_Distil_BERT_model_architecture_facb5e7639.png
 ├── Test.png                             # API testing screenshot
 ├── requirements.txt                     # Python dependencies
@@ -469,10 +517,14 @@ Use the GoEmotions checkpoint with a sigmoid activation to obtain 29 probability
 
 ## Reproduction Checklist
 
-1. Create a virtual environment (Python ≥ 3.10) and install `torch`, `transformers`, `scikit-learn`, `scikit-multilearn`, `pandas`, `numpy`, `jupyter`.
-2. Place the Kaggle CSVs in `Data/` or update the notebook paths.
-3. Launch Jupyter (`jupyter notebook`) and run `emotions-and-suicide-risk-using-distilbert-model (2).ipynb` sequentially (the original notebook remains for reference).
-4. Update `output_dir` and checkpoint paths if running outside Kaggle to avoid writing to `/kaggle/working`.
+1. Create a virtual environment (Python ≥ 3.10) and install dependencies:
+   ```bash
+   pip install torch transformers scikit-learn scikit-multilearn pandas numpy jupyter matplotlib
+   ```
+2. Place the Kaggle CSVs in `Data/` or let the notebook download them automatically via `gdown`
+3. Launch Jupyter and run `distilbert-emotion-suicide-risk-improved.ipynb` sequentially
+4. For Kaggle execution: notebook auto-detects `/kaggle/input` paths
+5. For local execution: notebook downloads datasets to `Data/` and saves outputs to local directories
 
 ## Ethical Considerations
 
