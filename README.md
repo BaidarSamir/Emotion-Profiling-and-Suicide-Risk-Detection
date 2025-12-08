@@ -30,7 +30,6 @@ Emotion-Profiling-and-Suicide-Risk-Detection/
 │
 ├──  Notebooks
 │   ├── distilbert-emotion-suicide-risk-improved.ipynb  # Main training notebook (Focal Loss + improvements)
-│   └── distilbert-emotion-suicide-risk.ipynb           # Baseline notebook (deprecated)
 │
 ├──  Data (not in repo - download from Kaggle)
 │   ├── go_emotions_dataset.csv                         # GoEmotions: 211K Reddit comments
