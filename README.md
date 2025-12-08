@@ -142,7 +142,7 @@ Emotion-Profiling-and-Suicide-Risk-Detection/
 ### Model Architecture
 - **Base Model:** DistilBERT-base-uncased for both tasks
 - **GoEmotions:** Multi-label classification head (`problem_type="multi_label_classification"`) with 29 output neurons
-- **SuicideWatch:** Binary classification head with 2 output neurons
+- **SuicideWatch:** Binary classification head with two output neurons
 
 ### Training Configuration
 - **Loss Functions:**
