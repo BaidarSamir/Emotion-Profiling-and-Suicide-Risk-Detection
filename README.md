@@ -28,15 +28,15 @@ This study implements DistilBERT-based models for two distinct mental health cla
 ```
 Emotion-Profiling-and-Suicide-Risk-Detection/
 │
-├── 📓 Notebooks
+├──  Notebooks
 │   ├── distilbert-emotion-suicide-risk-improved.ipynb  # Main training notebook (Focal Loss + improvements)
 │   └── distilbert-emotion-suicide-risk.ipynb           # Baseline notebook (deprecated)
 │
-├── 📊 Data (not in repo - download from Kaggle)
+├──  Data (not in repo - download from Kaggle)
 │   ├── go_emotions_dataset.csv                         # GoEmotions: 211K Reddit comments
 │   └── Suicide_Detection.csv                           # SuicideWatch: 232K Reddit posts
 │
-├── 🤖 Models (not in repo - train via notebook or download)
+├──  Models (not in repo - train via notebook or download)
 │   ├── model_go/                                       # GoEmotions emotion classifier
 │   │   ├── config.json                                 # Model configuration
 │   │   ├── model.safetensors                           # FP32 weights (265 MB)
@@ -58,7 +58,7 @@ Emotion-Profiling-and-Suicide-Risk-Detection/
 │       ├── vocab.txt                                   # WordPiece vocabulary
 │       └── special_tokens_map.json                     # Special tokens mapping
 │
-├── 🚀 API Server
+├──  API Server
 │   ├── app/
 │   │   └── main.py                                     # FastAPI REST endpoints
 │   └── requirements.txt                                # Python dependencies
@@ -77,13 +77,13 @@ Emotion-Profiling-and-Suicide-Risk-Detection/
 │       ├── sw_eval_precision.png                       # SuicideWatch precision progression
 │       └── sw_eval_recall.png                          # SuicideWatch recall progression
 │
-├── 📖 Documentation
+├──  Documentation
 │   ├── README.md                                       # This file
 │   ├── LICENSE                                         # MIT License
 │   ├── Diagram_of_BERT_BASE_and_Distil_BERT_model_architecture_facb5e7639.png
 │   └── Test.png                                        # API testing screenshot
 │
-└── ⚙️ Configuration
+└──  Configuration
     └── .gitignore                                      # Git ignore patterns
 ```
 
