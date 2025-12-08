@@ -23,32 +23,82 @@ This study implements DistilBERT-based models for two distinct mental health cla
 - [Ethical Considerations](#ethical-considerations)
 - [Citation](#citation)
 
-## Repository Overview
+## Repository Structure
 
 ```
-.
-├── Data/
-│   ├── go_emotions_dataset.csv
-│   └── Suicide_Detection.csv
-├── distilbert-emotion-suicide-risk-improved.ipynb
-├── app/
-│   └── main.py
-├── model_go/
-│   ├── config.json
-│   ├── model.safetensors
-│   ├── optimal_thresholds.npy
-│   ├── model_go_pruned.pt
-│   ├── model_go_pruned_quantized.pt
-│   └── ...
-├── model_sw/
-│   ├── config.json
-│   ├── model.safetensors
-│   ├── model_sw_pruned.pt
-│   ├── model_sw_pruned_quantized.pt
-│   └── ...
-└── visuals/
-    └── training curves + evaluation plots (PNG)
+Emotion-Profiling-and-Suicide-Risk-Detection/
+│
+├── 📓 Notebooks
+│   ├── distilbert-emotion-suicide-risk-improved.ipynb  # Main training notebook (Focal Loss + improvements)
+│   └── distilbert-emotion-suicide-risk.ipynb           # Baseline notebook (deprecated)
+│
+├── 📊 Data (not in repo - download from Kaggle)
+│   ├── go_emotions_dataset.csv                         # GoEmotions: 211K Reddit comments
+│   └── Suicide_Detection.csv                           # SuicideWatch: 232K Reddit posts
+│
+├── 🤖 Models (not in repo - train via notebook or download)
+│   ├── model_go/                                       # GoEmotions emotion classifier
+│   │   ├── config.json                                 # Model configuration
+│   │   ├── model.safetensors                           # FP32 weights (265 MB)
+│   │   ├── optimal_thresholds.npy                      # Per-class decision thresholds
+│   │   ├── model_go_pruned.pt                          # 30% pruned (186 MB)
+│   │   ├── model_go_pruned_quantized.pt                # Pruned + INT8 (68 MB)
+│   │   ├── tokenizer_config.json                       # Tokenizer settings
+│   │   ├── tokenizer.json                              # Fast tokenizer vocabulary
+│   │   ├── vocab.txt                                   # WordPiece vocabulary
+│   │   └── special_tokens_map.json                     # Special tokens mapping
+│   │
+│   └── model_sw/                                       # SuicideWatch risk detector
+│       ├── config.json                                 # Model configuration
+│       ├── model.safetensors                           # FP32 weights (265 MB)
+│       ├── model_sw_pruned.pt                          # 30% pruned (186 MB)
+│       ├── model_sw_pruned_quantized.pt                # Pruned + INT8 (68 MB)
+│       ├── tokenizer_config.json                       # Tokenizer settings
+│       ├── tokenizer.json                              # Fast tokenizer vocabulary
+│       ├── vocab.txt                                   # WordPiece vocabulary
+│       └── special_tokens_map.json                     # Special tokens mapping
+│
+├── 🚀 API Server
+│   ├── app/
+│   │   └── main.py                                     # FastAPI REST endpoints
+│   └── requirements.txt                                # Python dependencies
+│
+├──  Visualization Assets
+│   └── visuals/                                        # Training curves and plots
+│       ├── go_train_loss.png                           # GoEmotions training loss
+│       ├── go_val_loss.png                             # GoEmotions validation loss
+│       ├── go_eval_f1_micro.png                        # GoEmotions F1-micro progression
+│       ├── go_eval_f1_macro.png                        # GoEmotions F1-macro progression
+│       ├── go_eval_hamming_score.png                   # GoEmotions Hamming score
+│       ├── sw_train_loss.png                           # SuicideWatch training loss
+│       ├── sw_val_loss.png                             # SuicideWatch validation loss
+│       ├── sw_eval_accuracy.png                        # SuicideWatch accuracy progression
+│       ├── sw_eval_f1.png                              # SuicideWatch F1-score progression
+│       ├── sw_eval_precision.png                       # SuicideWatch precision progression
+│       └── sw_eval_recall.png                          # SuicideWatch recall progression
+│
+├── 📖 Documentation
+│   ├── README.md                                       # This file
+│   ├── LICENSE                                         # MIT License
+│   ├── Diagram_of_BERT_BASE_and_Distil_BERT_model_architecture_facb5e7639.png
+│   └── Test.png                                        # API testing screenshot
+│
+└── ⚙️ Configuration
+    └── .gitignore                                      # Git ignore patterns
 ```
+
+### File Size Summary
+
+| Component | Size | Notes |
+| --- | --- | --- |
+| **Datasets** | 53.8 MB | GoEmotions: 48.5 MB, SuicideWatch: 5.3 MB |
+| **Full Models (FP32)** | 530 MB | Both models (265 MB each) |
+| **Pruned Models (30%)** | 372 MB | Both models (186 MB each) |
+| **Quantized Models (INT8)** | 136 MB | Both models (68 MB each) |
+| **Training Curves** | ~2 MB | 11 PNG visualization files |
+| **Total (with all variants)** | ~1.1 GB | Excluding datasets |
+
+> **Note:** Model directories (`model_go/`, `model_sw/`) and datasets (`Data/`) are excluded from Git repository due to size constraints. Train models using the notebook or download pre-trained versions from releases.
 
 ## Datasets
 
@@ -454,6 +504,92 @@ Content-Type: application/json
 
 #### Suicide Risk Detection
 ```bash
+POST /predict/suicide
+Content-Type: application/json
+
+{
+  "text": "I don't want to be here anymore."
+}
+```
+
+**Response:**
+```json
+{
+  "label": "suicide",
+  "confidence": 0.9234,
+  "probabilities": {
+    "non-suicide": 0.0766,
+    "suicide": 0.9234
+  }
+}
+```
+
+### Python Client Example
+
+```python
+import requests
+
+# Emotion analysis
+response = requests.post(
+    "http://localhost:8000/predict/emotions",
+    json={"text": "I feel wonderful today!", "threshold": 0.5}
+)
+emotions = response.json()
+print(f"Detected emotions: {[p['label'] for p in emotions['predictions']]}")
+
+# Suicide risk assessment
+response = requests.post(
+    "http://localhost:8000/predict/suicide",
+    json={"text": "I'm feeling stressed but managing."}
+)
+risk = response.json()
+print(f"Risk level: {risk['label']} (confidence: {risk['confidence']:.2%})")
+```
+
+### Direct Model Inference
+
+```python
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+
+# Load model and tokenizer
+tokenizer = AutoTokenizer.from_pretrained("./model_sw")
+model = AutoModelForSequenceClassification.from_pretrained("./model_sw")
+model.eval()
+
+# For CPU deployment, use quantized version:
+# model = torch.load("model_sw/model_sw_pruned_quantized.pt")
+
+# Inference
+text = "I can't stop thinking about hurting myself."
+inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
+
+with torch.no_grad():
+    logits = model(**inputs).logits
+    probabilities = torch.softmax(logits, dim=-1)
+    
+risk_score = probabilities[0, 1].item()  # Index 1 = "suicide"
+print(f"Risk probability: {risk_score:.3f}")
+```
+
+For multi-label emotion classification, apply sigmoid activation:
+```python
+model_go = AutoModelForSequenceClassification.from_pretrained("./model_go")
+logits = model_go(**inputs).logits
+probabilities = torch.sigmoid(logits)  # Multi-label: sigmoid instead of softmax
+```
+
+## Reproduction Checklist
+
+1. Create a virtual environment (Python ≥ 3.10) and install dependencies:
+   ```bash
+   pip install torch transformers scikit-learn scikit-multilearn pandas numpy jupyter matplotlib
+   ```
+2. Place the Kaggle CSVs in `Data/` or let the notebook download them automatically via `gdown`
+3. Launch Jupyter and run `distilbert-emotion-suicide-risk-improved.ipynb` sequentially
+4. For Kaggle execution: notebook auto-detects `/kaggle/input` paths
+5. For local execution: notebook downloads datasets to `Data/` and saves outputs to local directories
+
 ## Ethical Considerations
 
 **Critical Safety Notice**: These models are research tools designed to augment, never replace, trained mental health professionals. 
@@ -545,38 +681,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Reddit communities for providing the training data
 - FastAPI team for the excellent web framework
 
-## Repository Structure
-
-```
-Emotion-Profiling-and-Suicide-Risk-Detection/
-├── app/
-│   └── main.py                          # FastAPI application with inference endpoints
-├── visuals/                             # Training curves and evaluation plots
-│   ├── go_train_loss.png
-│   ├── go_val_loss.png
-│   ├── go_eval_f1_micro.png
-│   ├── go_eval_f1_macro.png
-│   ├── go_eval_hamming_score.png
-│   ├── sw_train_loss.png
-│   ├── sw_val_loss.png
-│   ├── sw_eval_accuracy.png
-│   ├── sw_eval_f1.png
-│   ├── sw_eval_precision.png
-│   └── sw_eval_recall.png
-├── distilbert-emotion-suicide-risk-improved.ipynb  # Improved training notebook with Focal Loss
-├── distilbert-emotion-suicide-risk.ipynb  # Baseline training notebook (deprecated)
-├── Diagram_of_BERT_BASE_and_Distil_BERT_model_architecture_facb5e7639.png
-├── Test.png                             # API testing screenshot
-├── requirements.txt                     # Python dependencies
-├── README.md                            # This file
-├── LICENSE                              # MIT License
-├── .gitignore                           # Git ignore patterns
-├── model_go/                            # GoEmotions model (not in repo - train or download)
-└── model_sw/                            # SuicideWatch model (not in repo - train or download)
-```
-
-**Note**: Model directories (`model_go/`, `model_sw/`) and datasets (`Data/`) are excluded from the repository due to size constraints. Please train models using the notebook or download pre-trained versions.
-
 ## Contact
 
 For questions, issues, or collaboration opportunities:
@@ -598,124 +702,3 @@ Contributions are welcome! Please:
   <p><b>⚠️ If you or someone you know is in crisis, please reach out for help immediately.</b></p>
   <p><b>US: Call/Text 988 | International: https://www.iasp.info/resources/Crisis_Centres/</b></p>
 </div>
-}
-```
-
-**Response:**
-```json
-{
-  "label": "suicide",
-  "confidence": 0.9234,
-  "probabilities": {
-    "non-suicide": 0.0766,
-    "suicide": 0.9234
-  }
-}
-```
-
-### Python Client Example
-
-```python
-import requests
-
-# Emotion analysis
-response = requests.post(
-    "http://localhost:8000/predict/emotions",
-    json={"text": "I feel wonderful today!", "threshold": 0.5}
-)
-emotions = response.json()
-print(f"Detected emotions: {[p['label'] for p in emotions['predictions']]}")
-
-# Suicide risk assessment
-response = requests.post(
-    "http://localhost:8000/predict/suicide",
-    json={"text": "I'm feeling stressed but managing."}
-)
-risk = response.json()
-print(f"Risk level: {risk['label']} (confidence: {risk['confidence']:.2%})")
-```
-
-### Direct Model Inference
-
-```python
-import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-
-# Load model and tokenizer
-tokenizer = AutoTokenizer.from_pretrained("./model_sw")
-model = AutoModelForSequenceClassification.from_pretrained("./model_sw")
-model.eval()
-
-# For CPU deployment, use quantized version:
-# model = torch.load("model_sw/model_sw_pruned_quantized.pt")
-
-# Inference
-text = "I can't stop thinking about hurting myself."
-inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True)
-
-with torch.no_grad():
-    logits = model(**inputs).logits
-    probabilities = torch.softmax(logits, dim=-1)
-    
-risk_score = probabilities[0, 1].item()  # Index 1 = "suicide"
-print(f"Risk probability: {risk_score:.3f}")
-```
-
-For multi-label emotion classification, apply sigmoid activation:
-```python
-model_go = AutoModelForSequenceClassification.from_pretrained("./model_go")
-logits = model_go(**inputs).logits
-probabilities = torch.sigmoid(logits)  # Multi-label: sigmoid instead of softmax
-```
-# Suicide risk probability
-curl -X POST http://localhost:8000/predict/suicide \
-     -H "Content-Type: application/json" \
-     -d '{"text":"I dont want to be here anymore."}'
-```
-
-Responses contain the probability distribution across all labels so downstream systems can build custom decision policies.
-
-### Example Inference
-
-```python
-import torch
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-
-tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
-model = torch.load("model_sw/model_sw_pruned_quantized.pt")
-model.eval()
-
-inputs = tokenizer(
-    "I can't stop thinking about hurting myself.",
-    return_tensors="pt",
-    truncation=True,
-    padding=True
-)
-with torch.no_grad():
-    logits = model(**inputs).logits
-prob_suicide = torch.softmax(logits, dim=-1)[0, 1].item()
-print(f"Risk probability: {prob_suicide:.3f}")
-```
-
-Use the GoEmotions checkpoint with a sigmoid activation to obtain 29 probability scores and adjust decision thresholds per label if required.
-
-## Reproduction Checklist
-
-1. Create a virtual environment (Python ≥ 3.10) and install dependencies:
-   ```bash
-   pip install torch transformers scikit-learn scikit-multilearn pandas numpy jupyter matplotlib
-   ```
-2. Place the Kaggle CSVs in `Data/` or let the notebook download them automatically via `gdown`
-3. Launch Jupyter and run `distilbert-emotion-suicide-risk-improved.ipynb` sequentially
-4. For Kaggle execution: notebook auto-detects `/kaggle/input` paths
-5. For local execution: notebook downloads datasets to `Data/` and saves outputs to local directories
-
-## Ethical Considerations
-
-These models analyze text about self-harm and should only augment, never replace, trained professionals. Deployments must incorporate human-in-the-loop review, clear escalation policies, and guardrails against misuse. Maintain user privacy and obtain all necessary approvals before processing sensitive content.
-
-## Future Directions
-
-1. Increase GoEmotions coverage (larger training subset or class-balanced sampling) to improve macro-level recall.
-2. Integrate experiment tracking (Weights & Biases, MLflow) for hyper-parameter sweeps.
-3. Wrap the quantized checkpoints in a FastAPI/Gradio service with confidence calibration and explanation tooling.
