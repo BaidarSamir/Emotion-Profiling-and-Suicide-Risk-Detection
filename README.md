@@ -613,24 +613,27 @@ probabilities = torch.sigmoid(logits)  # Multi-label: sigmoid instead of softmax
 
 ### Limitations
 
-1. **Class Imbalance**: GoEmotions exhibits severe long-tail distribution (grief: 270 samples vs. neutral: 22,104 samples - 81× difference), limiting performance on rare emotion categories despite Focal Loss mitigation
-2. **Cultural and Demographic Bias**: Models trained exclusively on English Reddit data may not generalize to non-Western cultures, non-native speakers, or age groups underrepresented on Reddit (older adults, adolescents)
-3. **Temporal Drift**: Mental health discourse and language patterns evolve over time; models require periodic retraining on recent data to maintain performance
-4. **Context Window Limitations**: Fixed sequence lengths (128 tokens for GoEmotions, 256 for SuicideWatch) may truncate important context in longer posts
-5. **Label Ambiguity**: Reddit posts often express mixed emotions; binary emotion labels may oversimplify complex mental states
-6. **Domain Specificity**: Performance on clinical notes, therapy transcripts, or other formal mental health text may differ from casual social media discourse
-7. **Adversarial Robustness**: Models may be vulnerable to intentionally obfuscated or coded language used to evade content moderation
+1. **Data Imbalance**: Some emotions like grief (270 samples) are much rarer than others like neutral (22,104 samples), which affects how well the model recognizes them.
 
-## Future Directions
+2. **Limited Scope**: These models were trained only on English Reddit posts, so they may not work as well for other languages, cultures, or age groups not well-represented on Reddit.
 
-1. **Class-Balanced Sampling**: Apply oversampling, SMOTE, or advanced focal loss weight adjustments to improve performance on rare emotion classes (grief: 270 samples, relief: 515 samples, pride: 521 samples)
-2. **Ensemble Methods**: Investigate stacked models or weighted voting to improve calibration and reduce prediction variance
-3. **Multilingual Extension**: Fine-tune models on non-English mental health corpora (e.g., Spanish BETO, Chinese RoBERTa-wwm) for broader applicability
-4. **Temporal Context**: Incorporate conversation history or user posting patterns for longitudinal risk assessment and trajectory modeling
-5. **Model Interpretability**: Integrate attention visualization, LIME, or SHAP for explainable predictions in clinical settings to build trust with mental health professionals
-6. **Probability Calibration**: Apply temperature scaling or Platt scaling to improve confidence estimation reliability, particularly for high-stakes suicide risk predictions
-7. **Cross-Dataset Validation**: Evaluate on external datasets (e.g., CLPsych, Reddit Mental Health Dataset) to assess domain transfer and robustness
-8. **Active Learning Pipeline**: Implement uncertainty sampling to identify ambiguous cases requiring expert annotation, iteratively improving model performance
+3. **Evolving Language**: The way people talk about mental health changes over time. Models will need updates to stay accurate with current language patterns.
+
+4. **Text Length**: Longer posts get truncated, which might lose important context that appears later in the text.
+
+5. **Reddit-Specific**: Performance may vary on professional clinical text like therapy notes or medical records, as the writing style differs significantly from casual social media.
+
+## Future Work
+
+1. **Better Handle Rare Emotions**: Use sampling techniques to improve detection of underrepresented emotions like grief, relief, and pride.
+
+2. **Support More Languages**: Extend the models to work with Spanish, Chinese, and other languages to help more people globally.
+
+3. **Add Context Awareness**: Consider a user's posting history or conversation flow for better longitudinal risk assessment.
+
+4. **Improve Explainability**: Add visualization tools to help mental health professionals understand why the model made specific predictions.
+
+5. **Test on Clinical Data**: Validate performance on professional mental health datasets beyond Reddit to ensure broader applicability.
 
 ## Citation
 
