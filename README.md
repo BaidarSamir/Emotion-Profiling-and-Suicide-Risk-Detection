@@ -13,6 +13,12 @@ This study implements DistilBERT-based models for two distinct mental health cla
 ## Table of Contents
 - [Architecture Overview](#architecture-overview)
 - [Datasets](#datasets)
+  - [Dataset Snapshot](#dataset-snapshot)
+  - [Exploratory Data Analysis](#exploratory-data-analysis)
+    - [Dataset Characteristics](#dataset-characteristics)
+    - [Advanced NLP Analysis](#advanced-nlp-analysis)
+    - [Implications for Model Development](#implications-for-model-development)
+  - [Emotion Label Distribution](#emotion-label-distribution-83k-goemotions-training-split)
 - [Methodology](#methodology)
 - [Experimental Setup](#experimental-setup)
 - [Results](#results)
@@ -30,6 +36,7 @@ Emotion-Profiling-and-Suicide-Risk-Detection/
 │
 ├──  Notebooks
 │   ├── distilbert-emotion-suicide-risk-improved.ipynb  # Main training notebook (Focal Loss + improvements)
+│   └── EDA_Suicide_Detection_FR.ipynb                  # Comprehensive exploratory data analysis
 │
 ├──  Data (not in repo - download from Kaggle)
 │   ├── go_emotions_dataset.csv                         # GoEmotions: 211K Reddit comments
@@ -111,8 +118,182 @@ Emotion-Profiling-and-Suicide-Risk-Detection/
 | Dataset | Rows × Cols | Key Columns | Notes |
 | --- | --- | --- | --- |
 | GoEmotions | 211 225 × 31 | `id`, `text`, `example_very_unclear`, 28 emotion indicators, `neutral` | 48.5 MB, boolean clarity flag + dense integer labels |
-| SuicideWatch | 232 074 × 3 | `text`, `class` (`suicide` / `non-suicide`) | 5.3 MB, includes `Unnamed: 0` index column from Kaggle export |
+| SuicideWatch | 232 074 × 3 | `text`, `class` (`suicide` / `non-suicide`) | 5.3 MB, includes `Unnamed: 0` index column from Kaggle export |
 
+### Exploratory Data Analysis
+
+A comprehensive exploratory data analysis (EDA) of the SuicideWatch dataset reveals critical insights for model development and generative text synthesis applications. The analysis is available in `EDA_Suicide_Detection_FR.ipynb`.
+
+#### Dataset Characteristics
+
+**Distribution and Balance:**
+The dataset exhibits perfect class balance with 116,037 samples per class (50.0% each), eliminating the need for complex rebalancing techniques during model training.
+
+<div align="center">
+  <img src="visuals/eda_class_distribution_fr.png" alt="Class Distribution" width="700"/>
+  <p><i>Figure 2: Balanced distribution of suicide and non-suicide classes in the SuicideWatch dataset.</i></p>
+</div>
+
+**Text Length Analysis:**
+Significant differences emerge in text characteristics between classes:
+- **Suicide posts:** Mean length of 1,050 characters (203 words), median of 653 characters
+- **Non-suicide posts:** Mean length of 329 characters (61 words), median of 165 characters
+- **Overall range:** 3 to 40,297 characters
+
+Posts expressing suicidal ideation are approximately 3× longer, reflecting deeper emotional disclosure and help-seeking behavior.
+
+<div align="center">
+  <img src="visuals/eda_text_length_distribution_fr.png" alt="Text Length Distribution" width="800"/>
+  <p><i>Figure 3: Distribution of text length by class showing distinct patterns in character and word counts.</i></p>
+</div>
+
+<div align="center">
+  <img src="visuals/eda_boxplot_comparison_fr.png" alt="Box Plot Comparison" width="700"/>
+  <p><i>Figure 4: Box plot comparison revealing longer text lengths in suicide-related posts.</i></p>
+</div>
+
+**Linguistic Patterns:**
+Analysis of textual features reveals class-specific communication patterns:
+
+| Pattern | Suicide | Non-suicide | Interpretation |
+| --- | --- | --- | --- |
+| Question marks (?) | 0.81 per post | 0.55 per post | Higher help-seeking behavior |
+| Exclamation marks (!) | 0.13 per post | 0.45 per post | Lower emotional energy |
+| Ellipsis (...) | 0.45 per post | 0.31 per post | Increased hesitation/uncertainty |
+| Uppercase words | 0.83 per post | 0.87 per post | Similar emphasis patterns |
+
+<div align="center">
+  <img src="visuals/eda_text_patterns_fr.png" alt="Text Patterns" width="800"/>
+  <p><i>Figure 5: Comparison of linguistic patterns showing distinct communication styles between classes.</i></p>
+</div>
+
+**Vocabulary Analysis:**
+Word frequency analysis identifies class-specific terminology:
+
+**Suicide class dominant terms:**
+- Core themes: "want", "life", "feel", "get", "people", "time"
+- Psychological state: "dont", "know", "cant", "even", "never"
+- Social context: "friends", "going", "much"
+
+**Non-suicide class dominant terms:**
+- Casual discourse: "like", "dont", "filler", "day", "really"
+- Social references: "mom", "school", "people"
+- Mixed content indicators: "penis" (suggesting diverse non-crisis topics)
+
+<div align="center">
+  <img src="visuals/eda_wordclouds_fr.png" alt="Word Clouds" width="900"/>
+  <p><i>Figure 6: Word clouds illustrating vocabulary differences between suicide and non-suicide posts.</i></p>
+</div>
+
+**Data Quality:**
+- **Missing values:** 0 (0.00%)
+- **Duplicate texts:** 0 (0.00%)
+- **Very short texts (< 3 words):** 186 (0.08%)
+- **Very long texts (> 1000 words):** 2,111 (0.91%)
+
+The dataset demonstrates exceptional quality with no missing values or duplicates, requiring minimal preprocessing.
+
+#### Advanced NLP Analysis
+
+Comprehensive linguistic analysis reveals deeper structural and semantic differences between classes, providing critical insights for generative model development.
+
+**Sentiment and Polarity:**
+Sentiment analysis using VADER (Valence Aware Dictionary and sEntiment Reasoner) and TextBlob on 10,000 randomly sampled texts reveals distinct emotional profiles:
+
+| Metric | Suicide | Non-suicide | Interpretation |
+| --- | --- | --- | --- |
+| VADER Compound | -0.425 | +0.107 | Strong negative sentiment vs. slight positive |
+| VADER Positive | 0.110 | 0.133 | Lower positive affect in suicide posts |
+| VADER Negative | 0.168 | 0.102 | 64% higher negative affect |
+| VADER Neutral | 0.721 | 0.765 | Less neutral language |
+| TextBlob Polarity | -0.004 | +0.039 | Near-neutral vs. slightly positive |
+| TextBlob Subjectivity | 0.513 | 0.492 | Slightly more subjective expression |
+
+Suicide-related posts exhibit significantly more negative sentiment (VADER compound: -0.425 vs. +0.107), with 64% higher negative affect scores. This validates the emotional distress markers identified in vocabulary analysis.
+
+<div align="center">
+  <img src="visuals/eda_sentiment_analysis_fr.png" alt="Sentiment Analysis" width="900"/>
+  <p><i>Figure 7: Sentiment distribution showing marked negativity in suicide-related posts compared to baseline content.</i></p>
+</div>
+
+**Lexical Diversity:**
+Type-Token Ratio (TTR) and hapax legomena analysis quantify vocabulary richness:
+
+| Metric | Suicide | Non-suicide | Interpretation |
+| --- | --- | --- | --- |
+| Type-Token Ratio | 0.666 | 0.811 | Lower vocabulary repetition rate |
+| Hapax Ratio | 0.517 | 0.695 | Fewer unique words appearing once |
+| Unique Words (avg) | 106.3 | 38.3 | 2.8× more diverse vocabulary |
+| Total Words (avg) | 202.7 | 58.7 | 3.5× longer texts |
+
+Despite longer text length, suicide posts exhibit lower TTR (0.666 vs. 0.811), indicating repetition of core emotional vocabulary. However, they contain 2.8× more unique words in absolute terms (106 vs. 38), reflecting deeper self-disclosure.
+
+<div align="center">
+  <img src="visuals/eda_lexical_diversity_fr.png" alt="Lexical Diversity" width="900"/>
+  <p><i>Figure 8: Lexical diversity metrics showing vocabulary richness patterns across classes.</i></p>
+</div>
+
+**N-grams Analysis:**
+Frequent bigrams and trigrams reveal class-specific phrasal patterns (10,000 samples per class):
+
+**Suicide class - Top 5 bigrams:**
+1. "dont know" (3,597 occurrences) - uncertainty marker
+2. "feel like" (3,419 occurrences) - subjective experience descriptor
+3. "dont want" (3,006 occurrences) - avoidance/withdrawal
+4. "want die" (1,056 occurrences) - direct suicidal ideation
+5. "dont think" (852 occurrences) - cognitive distortion
+
+**Suicide class - Top 5 trigrams:**
+1. "head get head" (1,935 occurrences) - repetitive intrusive thoughts
+2. "dont even know" (325 occurrences) - cognitive confusion
+3. "dont know anymore" (222 occurrences) - hopelessness marker
+4. "dont want live" (220 occurrences) - explicit suicidal ideation
+5. "killing killing killing" (139 occurrences) - obsessive rumination
+
+**Non-suicide class - Top 5 bigrams:**
+1. "mom mom" (5,040 occurrences) - casual/spam content
+2. "filler filler" (2,741 occurrences) - low-quality posts
+3. "penis penis" (1,231 occurrences) - adolescent discourse
+4. "dont know" (584 occurrences) - general uncertainty
+5. "feel like" (449 occurrences) - casual opinion expression
+
+Suicide-related posts contain significantly more expressions of helplessness ("dont know", "cant even"), direct ideation ("want die"), and intrusive thought patterns (repetitive sequences). Non-suicide posts show higher prevalence of spam, filler content, and casual social discourse.
+
+**Readability Scores:**
+Multiple readability indices assess text complexity (10,000 samples):
+
+| Metric | Suicide | Non-suicide | Interpretation |
+| --- | --- | --- | --- |
+| Flesch Reading Ease | 73.90 | 64.81 | Easier to read (higher score = simpler) |
+| Flesch-Kincaid Grade | 7.41 | 9.18 | 7th vs. 9th grade reading level |
+| Gunning Fog Index | 9.37 | 10.12 | Fewer years of education required |
+| Automated Readability Index | 7.67 | 13.05 | Significantly simpler sentence structure |
+| SMOG Index | 8.96 | 8.40 | Similar complexity (conservative estimate) |
+| Avg Sentence Length | 17.96 | 19.97 | Shorter sentences |
+| Avg Syllables per Word | 1.36 | 1.44 | Simpler vocabulary |
+
+Counterintuitively, suicide posts are more readable (Flesch: 73.90 vs. 64.81) despite greater length, using simpler vocabulary (1.36 vs. 1.44 syllables per word) and shorter sentences (17.96 vs. 19.97 words). This reflects direct, unfiltered emotional expression rather than structured argumentation.
+
+<div align="center">
+  <img src="visuals/eda_readability_fr.png" alt="Readability Analysis" width="900"/>
+  <p><i>Figure 9: Readability metrics revealing simpler linguistic structures in suicide-related posts.</i></p>
+</div>
+
+#### Implications for Model Development
+
+1. **Text Generation:** The 3× length difference and variable complexity (Flesch scores: 73.90 vs. 64.81) suggest generative models must handle variable context windows (512-1024 tokens recommended) while preserving authentic emotional expression patterns.
+
+2. **Sentiment Modeling:** Strong negative polarity bias (VADER: -0.425) in suicide posts requires careful conditioning mechanisms to prevent overgeneration of distress signals while maintaining clinical authenticity.
+
+3. **Vocabulary Preservation:** Lower TTR (0.666) with repetitive emotional phrases ("dont know": 3,597 occurrences) indicates generative models should capture obsessive linguistic patterns characteristic of psychological distress.
+
+4. **N-gram Patterns:** High-frequency bigrams ("want die", "feel like", "dont want") provide validation markers for generated text authenticity. Models must reproduce these phrasal constructions at statistically appropriate rates.
+
+5. **Readability Control:** Simpler sentence structures (17.96 vs. 19.97 words) and vocabulary (1.36 vs. 1.44 syllables/word) in distress posts require decoding strategies that prioritize directness over linguistic sophistication.
+
+6. **Evaluation Strategy:** Multi-dimensional linguistic profiles (sentiment + lexical diversity + n-grams + readability) enable comprehensive discriminator-based evaluation of generated text quality beyond surface-level classification.
+
+7. **Ethical Considerations:** Advanced analysis reveals highly specific distress markers ("killing killing killing", "dont want live"). Generative applications require strict privacy protocols, expert validation, and safeguards against misuse in synthetic data creation.
 
 ### Emotion Label Distribution (83k GoEmotions Training Split)
 
